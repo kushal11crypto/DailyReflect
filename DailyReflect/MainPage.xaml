@@ -3,12 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:DailyReflect"
              xmlns:components="clr-namespace:DailyReflect.Components"
-             x:Class="DailyReflect.MainPage">
+             x:Class="DailyReflect.MainPage"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+
 
     <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>
-            <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
+            <RootComponent
+                Selector="#app"
+                ComponentType="{x:Type components:Routes}" />
         </BlazorWebView.RootComponents>
     </BlazorWebView>
-
 </ContentPage>

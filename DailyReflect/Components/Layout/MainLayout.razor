@@ -1,17 +1,100 @@
 ﻿@inherits LayoutComponentBase
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<MudLayout>
+    @if (_isAuthenticated)
+    {
+        <MudAppBar Elevation="1">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+            <MudText Typo="Typo.h6" Class="ml-3">DailyReflect</MudText>
+            <MudSpacer />
+            <MudToggleIconButton Toggled="_isDarkMode"
+                                 ToggledChanged="OnThemeChanged"
+                                 Icon="@Icons.Material.Filled.DarkMode"
+                                 ToggledIcon="@Icons.Material.Filled.LightMode"
+                                 Color="Color.Inherit"
+                                 Title="Toggle Theme"
+                                 ToggledTitle="Toggle Theme" />
 
-        <article class="content px-4">
+        </MudAppBar>
+        
+        <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+            <MudDrawerHeader>
+                <MudText Typo="Typo.h5" Color="Color.Primary">Menu</MudText>
+            </MudDrawerHeader>
+            <NavMenu />
+        </MudDrawer>
+        
+        <MudMainContent Class="pt-16 px-4">
+            <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="my-4">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    }
+    else
+    {
+        <MudMainContent>
             @Body
-        </article>
-    </main>
-</div>
+        </MudMainContent>
+    }
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode = false;
+    private bool _isAuthenticated = false;
+    
+    private MudTheme _theme = new MudTheme()
+    {
+        Palette = new PaletteLight()
+        {
+            Primary = Colors.Blue.Default,
+            Secondary = Colors.Teal.Default,
+            AppbarBackground = Colors.Blue.Default,
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = Colors.Blue.Lighten1,
+            Secondary = Colors.Teal.Lighten1,
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if password is required
+        var isPasswordSet = await AuthService.IsPasswordSetAsync();
+        
+        if (!isPasswordSet)
+        {
+            _isAuthenticated = true;
+        }
+        else
+        {
+            // For MAUI, you might want to implement persistent authentication
+            // For now, always require login if password is set
+            _isAuthenticated = false;
+            
+            // Don't auto-navigate in MAUI - let the user stay on current page
+            // Navigation will be handled by the Login page
+        }
+
+        // Load theme preference
+        var settings = await AuthService.GetSettingsAsync();
+        _isDarkMode = settings.Theme == "Dark";
+    }
+
+    private void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task OnThemeChanged(bool darkMode)
+    {
+        await AuthService.UpdateThemeAsync(darkMode ? "Dark" : "Light");
+    }
+}

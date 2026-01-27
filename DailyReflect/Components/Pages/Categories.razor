@@ -1,0 +1,172 @@
+﻿@page "/categories"
+@inject ITagCategoryService TagCategoryService
+@inject ISnackbar Snackbar
+
+<PageTitle>Manage Categories - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.Category" Class="mr-2" />
+    Manage Categories
+</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else
+{
+    <!-- Add New Category -->
+    <MudPaper Elevation="2" Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6" GutterBottom="true">Create New Category</MudText>
+        
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_newCategoryName"
+                              Label="Category Name"
+                              Variant="Variant.Outlined"
+                              Required="true" />
+            </MudItem>
+            
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_newCategoryDescription"
+                              Label="Description (Optional)"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="CreateCategory"
+                           Disabled="string.IsNullOrWhiteSpace(_newCategoryName) || _isSaving">
+                    Create Category
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- Categories List -->
+    <MudPaper Elevation="2" Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6" GutterBottom="true">
+            All Categories (@_categories.Count)
+        </MudText>
+
+        @if (_categories.Any())
+        {
+            <MudTable Items="@_categories" Hover="true" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Created</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">
+                        <MudText Typo="Typo.body1"><strong>@context.Name</strong></MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Description">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            @(string.IsNullOrWhiteSpace(context.Description) ? "No description" : context.Description)
+                        </MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Created">
+                        <MudText Typo="Typo.body2">@context.CreatedAt.ToString("MMM dd, yyyy")</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                       Color="Color.Error" 
+                                       Size="Size.Small"
+                                       OnClick="@(() => DeleteCategory(context))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                No categories created yet. Create your first category above!
+            </MudText>
+        }
+    </MudPaper>
+}
+
+@code {
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private string _newCategoryName = string.Empty;
+    private string _newCategoryDescription = string.Empty;
+    
+    private List<Category> _categories = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _categories = await TagCategoryService.GetAllCategoriesAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateCategory()
+    {
+        if (string.IsNullOrWhiteSpace(_newCategoryName))
+            return;
+
+        _isSaving = true;
+        try
+        {
+            var category = await TagCategoryService.CreateCategoryAsync(
+                _newCategoryName.Trim(), 
+                _newCategoryDescription?.Trim() ?? string.Empty
+            );
+            
+            if (!_categories.Any(c => c.Id == category.Id))
+            {
+                _categories.Add(category);
+                Snackbar.Add($"Category '{category.Name}' created successfully!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Category '{category.Name}' already exists", Severity.Info);
+            }
+            
+            _newCategoryName = string.Empty;
+            _newCategoryDescription = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating category: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task DeleteCategory(Category category)
+    {
+        try
+        {
+            var success = await TagCategoryService.DeleteCategoryAsync(category.Id);
+            
+            if (success)
+            {
+                _categories.Remove(category);
+                Snackbar.Add($"Category '{category.Name}' deleted successfully", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting category: {ex.Message}", Severity.Error);
+        }
+    }
+}

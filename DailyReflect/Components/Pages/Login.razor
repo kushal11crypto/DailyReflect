@@ -1,0 +1,91 @@
+﻿@page "/login"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center justify-center" Style="min-height: 100vh;">
+    <MudPaper Elevation="3" Class="pa-8" Width="100%">
+        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Color="Color.Primary" />
+        </MudText>
+        
+        <MudText Typo="Typo.h5" Align="Align.Center" GutterBottom="true">
+            DailyReflect
+        </MudText>
+        
+        <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-6">
+            Enter your password to continue
+        </MudText>
+
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_password" 
+                          Label="Password" 
+                          Variant="Variant.Outlined" 
+                          InputType="InputType.Password"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@Icons.Material.Filled.Key"
+                          Required="true"
+                          OnKeyPress="HandleKeyPress"
+                          AutoFocus="true" />
+            
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       FullWidth="true" 
+                       Class="mt-4"
+                       OnClick="HandleLogin"
+                       Disabled="_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <span>Unlock</span>
+                }
+            </MudButton>
+        </MudForm>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private MudForm _form = null!;
+    private string _password = string.Empty;
+    private bool _isLoading = false;
+
+    private async Task HandleLogin()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var isValid = await AuthService.ValidatePasswordAsync(_password);
+
+            if (isValid)
+            {
+                Snackbar.Add("Login successful!", Severity.Success);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                Snackbar.Add("Invalid password. Please try again.", Severity.Error);
+                _password = string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await HandleLogin();
+        }
+    }
+}

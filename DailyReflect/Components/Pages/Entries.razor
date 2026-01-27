@@ -1,0 +1,295 @@
+﻿@page "/entries"
+@using DailyReflect.Components.Models
+@using DailyReflect.Components.Services
+@using MudBlazor
+@inject IJournalService JournalService
+@inject ITagCategoryService TagCategoryService
+@inject NavigationManager Navigation
+
+<PageTitle>All Entries - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.List" Class="mr-2" />
+    All Journal Entries
+</MudText>
+
+<!-- Search and Filter Section -->
+<MudPaper Elevation="2" Class="pa-4 mt-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudTextField @bind-Value="_searchTerm"
+                          Label="Search entries"
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          OnKeyUp="@(async (e) => await OnSearchChanged())"
+                          Immediate="false" />
+        </MudItem>
+        
+        <MudItem xs="12" md="3">
+            <MudDatePicker Label="Start Date"
+                           @bind-Date="_startDate"
+                           Variant="Variant.Outlined"
+                           Clearable="true" />
+        </MudItem>
+        
+        <MudItem xs="12" md="3">
+            <MudDatePicker Label="End Date"
+                           @bind-Date="_endDate"
+                           Variant="Variant.Outlined"
+                           Clearable="true" />
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudSelect T="int" Label="Filter by Moods" Variant="Variant.Outlined" MultiSelection="true" @bind-SelectedValues="_selectedMoodIds">
+                @foreach (var mood in _moods)
+                {
+                    <MudSelectItem T="int" Value="@mood.Id">@mood.Emoji @mood.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudSelect T="int" Label="Filter by Tags" Variant="Variant.Outlined" MultiSelection="true" @bind-SelectedValues="_selectedTagIds">
+                @foreach (var tag in _tags)
+                {
+                    <MudSelectItem T="int" Value="@tag.Id">@tag.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12">
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FilterList" OnClick="ApplyFilters">
+                    Apply Filters
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.Clear" OnClick="ClearFilters">
+                    Clear Filters
+                </MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<!-- Entries List -->
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else if (!_entries.Any())
+{
+    <MudPaper Elevation="2" Class="pa-8 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Large" Color="Color.Secondary" />
+        <MudText Typo="Typo.h6" Class="mt-2">No entries found</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @(_isFiltered ? "Try adjusting your filters or search terms" : "Start your journaling journey today!")
+        </MudText>
+        @if (!_isFiltered)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" OnClick="@(() => Navigation.NavigateTo("/today"))">
+                Create First Entry
+            </MudButton>
+        }
+    </MudPaper>
+}
+else
+{
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+        Showing @_entries.Count of @_totalEntries entries
+    </MudText>
+
+    <MudPaper Elevation="2">
+        @foreach (var entry in _entries)
+        {
+            <MudPaper Elevation="0" Class="pa-4" Style="cursor: pointer; border-bottom: 1px solid var(--mud-palette-divider);" @onclick="@(() => NavigateToEntry(entry))">
+                <div class="d-flex justify-space-between align-start">
+                    <div style="flex: 1;">
+                        <MudText Typo="Typo.h6">
+                            @entry.EntryDate.ToString("MMMM dd, yyyy")
+                        </MudText>
+                        
+                        @if (!string.IsNullOrWhiteSpace(entry.Title))
+                        {
+                            <MudText Typo="Typo.body1" Class="mt-1">
+                                <strong>@entry.Title</strong>
+                            </MudText>
+                        }
+
+                        <MudText Typo="Typo.body2" Class="mt-2" Style="max-height: 60px; overflow: hidden; text-overflow: ellipsis;">
+                            @GetContentPreview(entry.Content)
+                        </MudText>
+
+                        <div class="d-flex gap-2 mt-3 flex-wrap align-center">
+                            
+
+                            @if (entry.SecondaryMood1 != null)
+                            {
+                                <MudChip T="JournalEntry" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">
+                                    @entry.SecondaryMood1.Emoji @entry.SecondaryMood1.Name
+                                </MudChip>
+                            }
+
+                            @if (entry.SecondaryMood2 != null)
+                            {
+                                <MudChip T="JournalEntry"  Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text">
+                                    @entry.SecondaryMood2.Emoji @entry.SecondaryMood2.Name
+                                </MudChip>
+                            }
+
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                • @entry.WordCount words
+                            </MudText>
+
+                            @if (entry.JournalEntryTags.Any())
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    • Tags: @string.Join(", ", entry.JournalEntryTags.Take(3).Select(jet => jet.Tag.Name))
+                                    @if (entry.JournalEntryTags.Count > 3)
+                                    {
+                                        <span> +@(entry.JournalEntryTags.Count - 3) more</span>
+                                    }
+                                </MudText>
+                            }
+                        </div>
+                    </div>
+
+                    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" />
+                </div>
+            </MudPaper>
+        }
+    </MudPaper>
+
+    <!-- Pagination -->
+    @if (_totalPages > 1)
+    {
+        <div class="d-flex justify-center mt-4">
+            <MudPagination Count="_totalPages" Selected="_currentPage" SelectedChanged="OnPageChanged" Color="Color.Primary" />
+        </div>
+    }
+}
+
+@code {
+    private bool _isLoading = true;
+    private bool _isFiltered = false;
+    
+    private List<JournalEntry> _entries = new();
+    private List<Mood> _moods = new();
+    private List<Tag> _tags = new();
+    
+    private int _currentPage = 1;
+    private int _pageSize = 10;
+    private int _totalEntries = 0;
+    private int _totalPages = 0;
+
+    private string _searchTerm = string.Empty;
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private IEnumerable<int> _selectedMoodIds = new HashSet<int>();
+    private IEnumerable<int> _selectedTagIds = new HashSet<int>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReferenceDataAsync();
+        await LoadEntriesAsync();
+    }
+
+    private async Task LoadReferenceDataAsync()
+    {
+        _moods = await TagCategoryService.GetAllMoodsAsync();
+        _tags = await TagCategoryService.GetAllTagsAsync();
+    }
+
+    private async Task LoadEntriesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            // Check if filters are applied
+            _isFiltered = !string.IsNullOrWhiteSpace(_searchTerm) || 
+                         _startDate.HasValue || 
+                         _endDate.HasValue || 
+                         _selectedMoodIds.Any() || 
+                         _selectedTagIds.Any();
+
+            if (_isFiltered)
+            {
+                // Apply search/filter
+                if (!string.IsNullOrWhiteSpace(_searchTerm))
+                {
+                    _entries = await JournalService.SearchEntriesAsync(_searchTerm);
+                }
+                else
+                {
+                    _entries = await JournalService.FilterEntriesAsync(
+                        _startDate,
+                        _endDate,
+                        _selectedMoodIds.Any() ? _selectedMoodIds.ToList() : null,
+                        _selectedTagIds.Any() ? _selectedTagIds.ToList() : null
+                    );
+                }
+
+                // Manual pagination for filtered results
+                _totalEntries = _entries.Count;
+                _totalPages = (int)Math.Ceiling(_totalEntries / (double)_pageSize);
+                _entries = _entries
+                    .Skip((_currentPage - 1) * _pageSize)
+                    .Take(_pageSize)
+                    .ToList();
+            }
+            else
+            {
+                // Regular paginated load
+                _totalEntries = await JournalService.GetTotalEntriesCountAsync();
+                _totalPages = (int)Math.Ceiling(_totalEntries / (double)_pageSize);
+                _entries = await JournalService.GetEntriesPaginatedAsync(_currentPage, _pageSize);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        _currentPage = page;
+        await LoadEntriesAsync();
+    }
+
+    private async Task OnSearchChanged()
+    {
+        _currentPage = 1;
+        await LoadEntriesAsync();
+    }
+
+    private async Task ApplyFilters()
+    {
+        _currentPage = 1;
+        await LoadEntriesAsync();
+    }
+
+    private async Task ClearFilters()
+    {
+        _searchTerm = string.Empty;
+        _startDate = null;
+        _endDate = null;
+        _selectedMoodIds = new HashSet<int>();
+        _selectedTagIds = new HashSet<int>();
+        _currentPage = 1;
+        await LoadEntriesAsync();
+    }
+
+    private void NavigateToEntry(JournalEntry entry)
+    {
+        Navigation.NavigateTo($"/entry/{entry.Id}");
+    }
+
+    private string GetContentPreview(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return string.Empty;
+
+        var preview = content.Length > 150 ? content.Substring(0, 150) + "..." : content;
+        return preview.Replace("\n", " ").Replace("\r", " ");
+    }
+}

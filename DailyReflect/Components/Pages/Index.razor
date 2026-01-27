@@ -1,0 +1,258 @@
+﻿@page "/"
+@inject IJournalService JournalService
+@inject IAnalyticsService AnalyticsService
+@inject NavigationManager Navigation
+@using MudBlazor
+
+<PageTitle>Dashboard - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-2" />
+    Dashboard
+</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else
+{
+    <MudGrid Class="mt-4">
+        <!-- Quick Stats -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Current Streak</MudText>
+                            <MudText Typo="Typo.h4">@_analytics.CurrentStreak</MudText>
+                            <MudText Typo="Typo.body2">days</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.Whatshot" Size="Size.Large" Color="Color.Warning" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Longest Streak</MudText>
+                            <MudText Typo="Typo.h4">@_analytics.LongestStreak</MudText>
+                            <MudText Typo="Typo.body2">days</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Large" Color="Color.Success" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Total Entries</MudText>
+                            <MudText Typo="Typo.h4">@_analytics.TotalEntries</MudText>
+                            <MudText Typo="Typo.body2">entries</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Large" Color="Color.Info" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Avg Words</MudText>
+                            <MudText Typo="Typo.h4">@_analytics.AverageWordCount.ToString("F0")</MudText>
+                            <MudText Typo="Typo.body2">per entry</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.TextFields" Size="Size.Large" Color="Color.Primary" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Today's Entry Quick Access -->
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">
+                            <MudIcon Icon="@Icons.Material.Filled.Today" Class="mr-2" />
+                            Today's Entry
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_todayEntry != null)
+                    {
+                        <MudText Typo="Typo.body1" Class="mb-2">
+                            <strong>@_todayEntry.Title</strong>
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            Mood: @_todayEntry.PrimaryMood?.Emoji @_todayEntry.PrimaryMood?.Name
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            Words: @_todayEntry.WordCount
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            No entry for today yet
+                        </MudText>
+                    }
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("/today"))">
+                        @(_todayEntry != null ? "Edit Today's Entry" : "Create Today's Entry")
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <!-- Most Frequent Mood -->
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">
+                            <MudIcon Icon="@Icons.Material.Filled.MoodBad" Class="mr-2" />
+                            Most Frequent Mood
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_analytics.MostFrequentMood != null)
+                    {
+                        <div class="d-flex align-center">
+                            <MudText Typo="Typo.h3" Class="mr-3">@_analytics.MostFrequentMood.Emoji</MudText>
+                            <div>
+                                <MudText Typo="Typo.h6">@_analytics.MostFrequentMood.MoodName</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    Recorded @_analytics.MostFrequentMood.Count times
+                                </MudText>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            No mood data available
+                        </MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Recent Entries -->
+        <MudItem xs="12">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">
+                            <MudIcon Icon="@Icons.Material.Filled.History" Class="mr-2" />
+                            Recent Entries
+                        </MudText>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("/entries"))">
+                            View All
+                        </MudButton>
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_recentEntries.Any())
+                    {
+                        <MudList T="JournalEntry">
+                            @foreach (var entry in _recentEntries.Take(5))
+                            {
+                                <MudListItem OnClick="@(() => NavigateToEntry(entry))">
+                                    <div class="d-flex justify-space-between align-center">
+                                        <div>
+                                            <MudText Typo="Typo.body1">
+                                                @entry.EntryDate.ToString("MMM dd, yyyy")
+                                                @if (!string.IsNullOrWhiteSpace(entry.Title))
+                                                {
+                                                    <span> - @entry.Title</span>
+                                                }
+                                            </MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                                @entry.PrimaryMood?.Emoji @entry.PrimaryMood?.Name · @entry.WordCount words
+                                            </MudText>
+                                        </div>
+                                        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" />
+                                    </div>
+                                </MudListItem>
+                                <MudDivider />
+                            }
+                        </MudList>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            No entries yet. Start journaling today!
+                        </MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Quick Actions -->
+        <MudItem xs="12">
+            <MudPaper Elevation="0" Class="pa-4">
+                <MudText Typo="Typo.h6" GutterBottom="true">Quick Actions</MudText>
+                <div class="d-flex gap-2 flex-wrap">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="@(() => Navigation.NavigateTo("/today"))">
+                        Write Today
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CalendarMonth" OnClick="@(() => Navigation.NavigateTo("/calendar"))">
+                        View Calendar
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Analytics" OnClick="@(() => Navigation.NavigateTo("/analytics"))">
+                        View Analytics
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _isLoading = true;
+    private AnalyticsSummary _analytics = new();
+    private JournalEntry? _todayEntry;
+    private List<JournalEntry> _recentEntries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _analytics = await AnalyticsService.GetAnalyticsAsync();
+            _todayEntry = await JournalService.GetEntryByDateAsync(DateTime.Today);
+            _recentEntries = await JournalService.GetEntriesPaginatedAsync(1, 5);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void NavigateToEntry(JournalEntry entry)
+    {
+        Navigation.NavigateTo($"/entry/{entry.Id}");
+    }
+}

@@ -1,0 +1,309 @@
+﻿@page "/calendar"
+@using DailyReflect.Components.Models
+@using DailyReflect.Components.Services
+@using MudBlazor
+@inject IJournalService JournalService
+@inject NavigationManager Navigation
+
+<PageTitle>Calendar - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Class="mr-2" />
+    Journal Calendar
+</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else
+{
+    <MudPaper Elevation="2" Class="pa-4 mt-4">
+        <!-- Month/Year Navigation -->
+        <div class="d-flex justify-space-between align-center mb-4">
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PreviousMonth" />
+            <MudText Typo="Typo.h5">@_currentDate.ToString("MMMM yyyy")</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" />
+        </div>
+
+        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" OnClick="GoToToday" Class="mb-4">
+            Today
+        </MudButton>
+
+        <!-- Calendar Grid -->
+        <MudGrid Spacing="1">
+            <!-- Day Headers -->
+            @foreach (var day in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
+            {
+                <MudItem xs="12" sm="1" Style="min-width: 120px;">
+                    <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Secondary">
+                        <strong>@day</strong>
+                    </MudText>
+                </MudItem>
+            }
+
+            <!-- Calendar Days -->
+            @foreach (var day in _calendarDays)
+            {
+                <MudItem xs="12" sm="1" Style="min-width: 120px;">
+                    <MudPaper Elevation="@(day.IsCurrentMonth ? 1 : 0)"
+                              Class="pa-2"
+                              Style="@GetDayStyle(day)"
+                              @onclick="@(() => OnDayClicked(day))">
+                        
+                        <MudText Typo="Typo.body2" 
+                                 Align="Align.Center" 
+                                 Color="@(day.IsToday ? Color.Primary : (day.IsCurrentMonth ? Color.Default : Color.Secondary))">
+                            <strong>@day.Date.Day</strong>
+                        </MudText>
+
+                        @if (day.HasEntry)
+                        {
+                            <div class="d-flex justify-center mt-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Circle" 
+                                         Size="Size.Small" 
+                                         Color="@GetMoodColor(day.Entry!.PrimaryMood!.Category)" />
+                            </div>
+                            
+                            @if (day.Entry.WordCount > 0)
+                            {
+                                <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Secondary" Class="mt-1">
+                                    @day.Entry.WordCount words
+                                </MudText>
+                            }
+                        }
+                        else if (day.IsCurrentMonth)
+                        {
+                            <div class="d-flex justify-center mt-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Secondary" Style="opacity: 0.3;" />
+                            </div>
+                        }
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+
+        <!-- Legend -->
+        <MudPaper Elevation="0" Class="pa-3 mt-4">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" GutterBottom="true">
+                <strong>Mood Colors:</strong>
+            </MudText>
+            <div class="d-flex gap-4 flex-wrap">
+                <div class="d-flex align-center gap-1">
+                    <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" Color="Color.Success" />
+                    <MudText Typo="Typo.caption">Positive</MudText>
+                </div>
+                <div class="d-flex align-center gap-1">
+                    <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" Color="Color.Info" />
+                    <MudText Typo="Typo.caption">Neutral</MudText>
+                </div>
+                <div class="d-flex align-center gap-1">
+                    <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" Color="Color.Warning" />
+                    <MudText Typo="Typo.caption">Negative</MudText>
+                </div>
+            </div>
+        </MudPaper>
+    </MudPaper>
+
+    <!-- Selected Day Info -->
+    @if (_selectedDay != null && _selectedDay.HasEntry)
+    {
+        <MudPaper Elevation="2" Class="pa-4 mt-4">
+            <MudText Typo="Typo.h6" GutterBottom="true">
+                @_selectedDay.Date.ToString("MMMM dd, yyyy")
+            </MudText>
+
+            @if (!string.IsNullOrWhiteSpace(_selectedDay.Entry!.Title))
+            {
+                <MudText Typo="Typo.body1" Class="mb-2">
+                    <strong>@_selectedDay.Entry.Title</strong>
+                </MudText>
+            }
+
+            <div class="mb-2">
+                <MudChip T="JournalEntry" Size="Size.Small" Color="Color.Primary">
+                    @_selectedDay.Entry.PrimaryMood?.Emoji @_selectedDay.Entry.PrimaryMood?.Name
+                </MudChip>
+            </div>
+
+            <MudText Typo="Typo.body2" Class="mb-3" Style="max-height: 100px; overflow: hidden;">
+                @GetContentPreview(_selectedDay.Entry.Content)
+            </MudText>
+
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Navigation.NavigateTo($"/entry/{_selectedDay.Entry.Id}"))">
+                    View Full Entry
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Navigation.NavigateTo("/today"))">
+                    Edit Entry
+                </MudButton>
+            </div>
+        </MudPaper>
+    }
+}
+
+@code {
+    private class CalendarDay
+    {
+        public DateTime Date { get; set; }
+        public bool IsCurrentMonth { get; set; }
+        public bool IsToday { get; set; }
+        public bool HasEntry { get; set; }
+        public JournalEntry? Entry { get; set; }
+    }
+
+    private bool _isLoading = true;
+    private DateTime _currentDate = DateTime.Today;
+    private List<CalendarDay> _calendarDays = new();
+    private CalendarDay? _selectedDay;
+    private Dictionary<DateTime, JournalEntry> _entries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCalendarAsync();
+    }
+
+    private async Task LoadCalendarAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            // Load all entries for the current month
+            var startDate = new DateTime(_currentDate.Year, _currentDate.Month, 1);
+            var endDate = startDate.AddMonths(1).AddDays(-1);
+
+            var entries = await JournalService.FilterEntriesAsync(startDate, endDate, null, null);
+            _entries = entries.ToDictionary(e => e.EntryDate.Date);
+
+            // Generate calendar days
+            _calendarDays = GenerateCalendarDays();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private List<CalendarDay> GenerateCalendarDays()
+    {
+        var days = new List<CalendarDay>();
+        var firstDayOfMonth = new DateTime(_currentDate.Year, _currentDate.Month, 1);
+        var lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+
+        // Days from previous month
+        var startDayOfWeek = (int)firstDayOfMonth.DayOfWeek;
+        var prevMonthStart = firstDayOfMonth.AddDays(-startDayOfWeek);
+
+        for (int i = 0; i < startDayOfWeek; i++)
+        {
+            var date = prevMonthStart.AddDays(i);
+            days.Add(new CalendarDay
+            {
+                Date = date,
+                IsCurrentMonth = false,
+                IsToday = date.Date == DateTime.Today,
+                HasEntry = _entries.ContainsKey(date.Date),
+                Entry = _entries.GetValueOrDefault(date.Date)
+            });
+        }
+
+        // Days of current month
+        for (int day = 1; day <= lastDayOfMonth.Day; day++)
+        {
+            var date = new DateTime(_currentDate.Year, _currentDate.Month, day);
+            days.Add(new CalendarDay
+            {
+                Date = date,
+                IsCurrentMonth = true,
+                IsToday = date.Date == DateTime.Today,
+                HasEntry = _entries.ContainsKey(date.Date),
+                Entry = _entries.GetValueOrDefault(date.Date)
+            });
+        }
+
+        // Days from next month to complete the grid
+        var remainingDays = 42 - days.Count; // 6 rows * 7 days
+        var nextMonthStart = lastDayOfMonth.AddDays(1);
+
+        for (int i = 0; i < remainingDays; i++)
+        {
+            var date = nextMonthStart.AddDays(i);
+            days.Add(new CalendarDay
+            {
+                Date = date,
+                IsCurrentMonth = false,
+                IsToday = date.Date == DateTime.Today,
+                HasEntry = _entries.ContainsKey(date.Date),
+                Entry = _entries.GetValueOrDefault(date.Date)
+            });
+        }
+
+        return days;
+    }
+
+    private async Task PreviousMonth()
+    {
+        _currentDate = _currentDate.AddMonths(-1);
+        await LoadCalendarAsync();
+    }
+
+    private async Task NextMonth()
+    {
+        _currentDate = _currentDate.AddMonths(1);
+        await LoadCalendarAsync();
+    }
+
+    private async Task GoToToday()
+    {
+        _currentDate = DateTime.Today;
+        await LoadCalendarAsync();
+    }
+
+    private void OnDayClicked(CalendarDay day)
+    {
+        if (day.HasEntry)
+        {
+            _selectedDay = day;
+        }
+        else if (day.Date.Date == DateTime.Today)
+        {
+            Navigation.NavigateTo("/today");
+        }
+    }
+
+    private string GetDayStyle(CalendarDay day)
+    {
+        var style = "cursor: pointer; min-height: 100px; ";
+        
+        if (day.IsToday)
+        {
+            style += "border: 2px solid var(--mud-palette-primary); ";
+        }
+        
+        if (day.HasEntry)
+        {
+            style += "background-color: var(--mud-palette-action-default-hover); ";
+        }
+
+        return style;
+    }
+
+    private Color GetMoodColor(MoodCategory category)
+    {
+        return category switch
+        {
+            MoodCategory.Positive => Color.Success,
+            MoodCategory.Neutral => Color.Info,
+            MoodCategory.Negative => Color.Warning,
+            _ => Color.Default
+        };
+    }
+
+    private string GetContentPreview(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return string.Empty;
+
+        return content.Length > 200 ? content.Substring(0, 200) + "..." : content;
+    }
+}

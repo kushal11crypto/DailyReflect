@@ -1,0 +1,300 @@
+﻿@page "/analytics"
+@inject IAnalyticsService AnalyticsService
+
+<PageTitle>Analytics - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.Analytics" Class="mr-2" />
+    Analytics & Insights
+</MudText>
+
+<!-- Date Range Filter -->
+<MudPaper Elevation="2" Class="pa-4 mt-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" md="4">
+            <MudDatePicker Label="Start Date"
+                           @bind-Date="_startDate"
+                           Variant="Variant.Outlined"
+                           Clearable="true" />
+        </MudItem>
+        
+        <MudItem xs="12" md="4">
+            <MudDatePicker Label="End Date"
+                           @bind-Date="_endDate"
+                           Variant="Variant.Outlined"
+                           Clearable="true" />
+        </MudItem>
+
+        <MudItem xs="12" md="4" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadAnalyticsAsync" FullWidth="true">
+                Apply Date Range
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else
+{
+    <MudGrid>
+        <!-- Streak Stats -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Current Streak</MudText>
+                            <MudText Typo="Typo.h3">@_analytics.CurrentStreak</MudText>
+                            <MudText Typo="Typo.body2">days</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.Whatshot" Size="Size.Large" Color="Color.Warning" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Longest Streak</MudText>
+                            <MudText Typo="Typo.h3">@_analytics.LongestStreak</MudText>
+                            <MudText Typo="Typo.body2">days</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Size="Size.Large" Color="Color.Success" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Total Entries</MudText>
+                            <MudText Typo="Typo.h3">@_analytics.TotalEntries</MudText>
+                            <MudText Typo="Typo.body2">entries</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Large" Color="Color.Info" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Missed Days</MudText>
+                            <MudText Typo="Typo.h3">@_analytics.MissedDays</MudText>
+                            <MudText Typo="Typo.body2">days</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Large" Color="Color.Error" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Mood Distribution -->
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Mood Distribution</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_analytics.MoodDistribution.Any())
+                    {
+                        @foreach (var mood in _analytics.MoodDistribution)
+                        {
+                            <div class="mb-3">
+                                <div class="d-flex justify-space-between mb-1">
+                                    <MudText Typo="Typo.body2">@GetMoodLabel(mood.Category)</MudText>
+                                    <MudText Typo="Typo.body2">@mood.Percentage.ToString("F1")% (@mood.Count)</MudText>
+                                </div>
+                                <MudProgressLinear Color="@GetMoodProgressColor(mood.Category)" 
+                                                   Value="@mood.Percentage" 
+                                                   Size="Size.Large" />
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">No mood data available</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Most Frequent Mood -->
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Most Frequent Mood</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="d-flex flex-column align-center justify-center" Style="min-height: 200px;">
+                    @if (_analytics.MostFrequentMood != null)
+                    {
+                        <MudText Typo="Typo.h1" Class="mb-2">@_analytics.MostFrequentMood.Emoji</MudText>
+                        <MudText Typo="Typo.h5">@_analytics.MostFrequentMood.MoodName</MudText>
+                        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mt-2">
+                            Recorded @_analytics.MostFrequentMood.Count times
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">No mood data available</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Most Used Tags -->
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Most Used Tags (Top 10)</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_analytics.MostUsedTags.Any())
+                    {
+                        @foreach (var tag in _analytics.MostUsedTags)
+                        {
+                            <div class="mb-3">
+                                <div class="d-flex justify-space-between mb-1">
+                                    <MudText Typo="Typo.body2">@tag.TagName</MudText>
+                                    <MudText Typo="Typo.body2">@tag.Count entries (@tag.Percentage.ToString("F1")%)</MudText>
+                                </div>
+                                <MudProgressLinear Color="Color.Primary" 
+                                                   Value="@tag.Percentage" 
+                                                   Size="Size.Medium" />
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">No tag data available</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Word Count Stats -->
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Writing Statistics</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <div class="mb-4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Average Word Count</MudText>
+                        <MudText Typo="Typo.h4">@_analytics.AverageWordCount.ToString("F0")</MudText>
+                        <MudText Typo="Typo.body2">words per entry</MudText>
+                    </div>
+
+                    @if (_analytics.WordCountTrends.Any())
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">Recent Word Count Trend</MudText>
+                        <div style="max-height: 150px; overflow-y: auto;">
+                            @foreach (var trend in _analytics.WordCountTrends.OrderByDescending(t => t.Date).Take(5))
+                            {
+                                <div class="d-flex justify-space-between mb-2">
+                                    <MudText Typo="Typo.caption">@trend.Date.ToString("MMM dd")</MudText>
+                                    <MudText Typo="Typo.caption">@trend.WordCount words</MudText>
+                                </div>
+                            }
+                        </div>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Tag Breakdown -->
+        <MudItem xs="12">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">All Tags Breakdown</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_analytics.TagBreakdown.Any())
+                    {
+                        <MudChipSet>
+                            @foreach (var tag in _analytics.TagBreakdown.OrderByDescending(t => t.Count))
+                            {
+                                <MudChip Color="Color.Primary" Variant="Variant.Outlined">
+                                    @tag.TagName (@tag.Count)
+                                </MudChip>
+                            }
+                        </MudChipSet>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">No tags used yet</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _isLoading = true;
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private AnalyticsSummary _analytics = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnalyticsAsync();
+    }
+
+    private async Task LoadAnalyticsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _analytics = await AnalyticsService.GetAnalyticsAsync(_startDate, _endDate);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string GetMoodLabel(MoodCategory category)
+    {
+        return category switch
+        {
+            MoodCategory.Positive => "😊 Positive",
+            MoodCategory.Neutral => "😐 Neutral",
+            MoodCategory.Negative => "😔 Negative",
+            _ => category.ToString()
+        };
+    }
+
+    private Color GetMoodProgressColor(MoodCategory category)
+    {
+        return category switch
+        {
+            MoodCategory.Positive => Color.Success,
+            MoodCategory.Neutral => Color.Info,
+            MoodCategory.Negative => Color.Warning,
+            _ => Color.Default
+        };
+    }
+}

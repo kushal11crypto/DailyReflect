@@ -1,0 +1,370 @@
+﻿@page "/settings"
+@using DailyReflect.Components.Models
+@using DailyReflect.Components.Services
+@using MudBlazor
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+
+<PageTitle>Settings - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+    Settings
+</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else
+{
+    <MudGrid>
+        <!-- Security Settings -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" GutterBottom="true">
+                    <MudIcon Icon="@Icons.Material.Filled.Security" Class="mr-1" Size="Size.Small" />
+                    Security
+                </MudText>
+
+                <MudSwitch T="bool" @bind-Checked="_passwordEnabled"
+                           Color="Color.Primary" 
+                           Label="Enable Password Protection"
+                           Disabled="_isSaving" />
+
+                @if (_passwordEnabled)
+                {
+                    <MudPaper Elevation="0" Class="pa-3 mt-3" Style="background-color: var(--mud-palette-background-grey);">
+                        @if (_settings.RequirePassword)
+                        {
+                            <!-- Change Password -->
+                            <MudText Typo="Typo.body2" Class="mb-3">Change Password</MudText>
+                            
+                            <MudTextField @bind-Value="_oldPassword"
+                                          Label="Current Password"
+                                          Variant="Variant.Outlined"
+                                          InputType="InputType.Password"
+                                          Class="mb-3" />
+
+                            <MudTextField @bind-Value="_newPassword"
+                                          Label="New Password"
+                                          Variant="Variant.Outlined"
+                                          InputType="InputType.Password"
+                                          Class="mb-3" />
+
+                            <MudTextField @bind-Value="_confirmPassword"
+                                          Label="Confirm New Password"
+                                          Variant="Variant.Outlined"
+                                          InputType="InputType.Password"
+                                          Class="mb-3" />
+
+                            <div class="d-flex gap-2">
+                                <MudButton Variant="Variant.Filled" 
+                                           Color="Color.Primary" 
+                                           Size="Size.Small"
+                                           OnClick="ChangePassword"
+                                           Disabled="_isSaving">
+                                    Change Password
+                                </MudButton>
+
+                                <MudButton Variant="Variant.Outlined" 
+                                           Color="Color.Error" 
+                                           Size="Size.Small"
+                                           OnClick="RemovePassword"
+                                           Disabled="_isSaving">
+                                    Remove Password
+                                </MudButton>
+                            </div>
+                        }
+                        else
+                        {
+                            <!-- Set New Password -->
+                            <MudText Typo="Typo.body2" Class="mb-3">Set Password</MudText>
+                            
+                            <MudTextField @bind-Value="_newPassword"
+                                          Label="Password"
+                                          Variant="Variant.Outlined"
+                                          InputType="InputType.Password"
+                                          HelperText="Minimum 4 characters"
+                                          Class="mb-3" />
+
+                            <MudTextField @bind-Value="_confirmPassword"
+                                          Label="Confirm Password"
+                                          Variant="Variant.Outlined"
+                                          InputType="InputType.Password"
+                                          Class="mb-3" />
+
+                            <MudButton Variant="Variant.Filled" 
+                                       Color="Color.Primary" 
+                                       Size="Size.Small"
+                                       OnClick="SetPassword"
+                                       Disabled="_isSaving">
+                                Set Password
+                            </MudButton>
+                        }
+                    </MudPaper>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <!-- Theme Settings -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" GutterBottom="true">
+                    <MudIcon Icon="@Icons.Material.Filled.Palette" Class="mr-1" Size="Size.Small" />
+                    Appearance
+                </MudText>
+
+                <MudRadioGroup @bind-SelectedOption="_selectedTheme" T="string">
+                    <MudRadio T="string" Option="@("Light")" Color="Color.Primary">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.LightMode" Class="mr-2" />
+                            <span>Light Theme</span>
+                        </div>
+                    </MudRadio>
+                    <MudRadio T="string" Option="@("Dark")" Color="Color.Primary">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.DarkMode" Class="mr-2" />
+                            <span>Dark Theme</span>
+                        </div>
+                    </MudRadio>
+                </MudRadioGroup>
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           Class="mt-4"
+                           OnClick="SaveTheme"
+                           Disabled="_isSaving">
+                    Apply Theme
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+
+        <!-- About -->
+        <MudItem xs="12">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" GutterBottom="true">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-1" Size="Size.Small" />
+                    About DailyReflect
+                </MudText>
+
+                <MudText Typo="Typo.body1" Class="mb-2">
+                    <strong>Version:</strong> 1.0.0
+                </MudText>
+
+                <MudText Typo="Typo.body2" Class="mb-2">
+                    DailyReflect is a personal journaling application designed to help you track your daily thoughts,
+                    moods, and experiences. All your data is stored locally on your device for maximum privacy.
+                </MudText>
+
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    <strong>Features:</strong>
+                </MudText>
+                <ul>
+                    <li><MudText Typo="Typo.body2">One journal entry per day with rich text/Markdown support</MudText></li>
+                    <li><MudText Typo="Typo.body2">Mood tracking with primary and secondary moods</MudText></li>
+                    <li><MudText Typo="Typo.body2">Custom tags and categories</MudText></li>
+                    <li><MudText Typo="Typo.body2">Calendar and timeline views</MudText></li>
+                    <li><MudText Typo="Typo.body2">Streak tracking and analytics</MudText></li>
+                    <li><MudText Typo="Typo.body2">PDF export functionality</MudText></li>
+                    <li><MudText Typo="Typo.body2">Password protection</MudText></li>
+                    <li><MudText Typo="Typo.body2">Light and dark themes</MudText></li>
+                </ul>
+            </MudPaper>
+        </MudItem>
+
+        <!-- Database Info -->
+        <MudItem xs="12">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" GutterBottom="true">
+                    <MudIcon Icon="@Icons.Material.Filled.Storage" Class="mr-1" Size="Size.Small" />
+                    Data Storage
+                </MudText>
+
+                <MudText Typo="Typo.body2" Class="mb-2">
+                    All your journal entries are stored locally in an SQLite database.
+                </MudText>
+
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    <strong>Database Location:</strong> %LocalAppData%\DailyReflect\dailyreflect.db
+                </MudText>
+
+                <MudAlert Severity="Severity.Info" Class="mt-3">
+                    <strong>Privacy Notice:</strong> Your data never leaves your device. 
+                    We recommend regular backups of your database file.
+                </MudAlert>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private UserSettings _settings = new();
+    
+    private bool _passwordEnabled = false;
+    private string _oldPassword = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private string _selectedTheme = "Light";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _settings = await AuthService.GetSettingsAsync();
+            _passwordEnabled = _settings.RequirePassword;
+            _selectedTheme = _settings.Theme;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SetPassword()
+    {
+        if (string.IsNullOrWhiteSpace(_newPassword))
+        {
+            Snackbar.Add("Password cannot be empty", Severity.Warning);
+            return;
+        }
+
+        if (_newPassword.Length < 4)
+        {
+            Snackbar.Add("Password must be at least 4 characters", Severity.Warning);
+            return;
+        }
+
+        if (_newPassword != _confirmPassword)
+        {
+            Snackbar.Add("Passwords do not match", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            await AuthService.SetPasswordAsync(_newPassword);
+            Snackbar.Add("Password set successfully!", Severity.Success);
+            
+            _newPassword = string.Empty;
+            _confirmPassword = string.Empty;
+            await LoadSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        if (string.IsNullOrWhiteSpace(_oldPassword) || string.IsNullOrWhiteSpace(_newPassword))
+        {
+            Snackbar.Add("Please fill in all password fields", Severity.Warning);
+            return;
+        }
+
+        if (_newPassword.Length < 4)
+        {
+            Snackbar.Add("New password must be at least 4 characters", Severity.Warning);
+            return;
+        }
+
+        if (_newPassword != _confirmPassword)
+        {
+            Snackbar.Add("New passwords do not match", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            var success = await AuthService.ChangePasswordAsync(_oldPassword, _newPassword);
+            
+            if (success)
+            {
+                Snackbar.Add("Password changed successfully!", Severity.Success);
+                _oldPassword = string.Empty;
+                _newPassword = string.Empty;
+                _confirmPassword = string.Empty;
+            }
+            else
+            {
+                Snackbar.Add("Current password is incorrect", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task RemovePassword()
+    {
+        if (string.IsNullOrWhiteSpace(_oldPassword))
+        {
+            Snackbar.Add("Please enter your current password", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            var success = await AuthService.RemovePasswordAsync(_oldPassword);
+            
+            if (success)
+            {
+                Snackbar.Add("Password protection removed", Severity.Success);
+                _passwordEnabled = false;
+                _oldPassword = string.Empty;
+                await LoadSettingsAsync();
+            }
+            else
+            {
+                Snackbar.Add("Current password is incorrect", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task SaveTheme()
+    {
+        _isSaving = true;
+        try
+        {
+            await AuthService.UpdateThemeAsync(_selectedTheme);
+            Snackbar.Add("Theme updated! Please refresh the page to apply changes.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

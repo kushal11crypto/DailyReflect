@@ -1,0 +1,251 @@
+﻿@page "/export"
+@inject IJournalService JournalService
+@inject IPdfExportService PdfExportService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Export - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Class="mr-2" />
+    Export to PDF
+</MudText>
+
+<MudPaper Elevation="2" Class="pa-4 mt-4">
+    <MudText Typo="Typo.h6" GutterBottom="true">Select Date Range</MudText>
+    
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudDatePicker Label="Start Date"
+                           @bind-Date="_startDate"
+                           Variant="Variant.Outlined"
+                           Required="true"
+                           MaxDate="DateTime.Today" />
+        </MudItem>
+        
+        <MudItem xs="12" md="6">
+            <MudDatePicker Label="End Date"
+                           @bind-Date="_endDate"
+                           Variant="Variant.Outlined"
+                           Required="true"
+                           MaxDate="DateTime.Today" />
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudTextField @bind-Value="_exportTitle"
+                          Label="Document Title"
+                          Variant="Variant.Outlined"
+                          HelperText="Optional: Customize the PDF title" />
+        </MudItem>
+
+        <MudItem xs="12">
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           StartIcon="@Icons.Material.Filled.Download"
+                           OnClick="ExportAllEntries"
+                           Disabled="_isExporting">
+                    @if (_isExporting)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Exporting...</span>
+                    }
+                    else
+                    {
+                        <span>Export All Entries</span>
+                    }
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Primary" 
+                           StartIcon="@Icons.Material.Filled.DateRange"
+                           OnClick="SetThisMonth">
+                    This Month
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Primary" 
+                           StartIcon="@Icons.Material.Filled.CalendarToday"
+                           OnClick="SetThisYear">
+                    This Year
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Default" 
+                           StartIcon="@Icons.Material.Filled.AllInclusive"
+                           OnClick="SetAllTime">
+                    All Time
+                </MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<!-- Preview Section -->
+@if (_previewEntries.Any())
+{
+    <MudPaper Elevation="2" Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6" GutterBottom="true">
+            Preview (@_previewEntries.Count entries will be exported)
+        </MudText>
+
+        <MudList T="JournalEntry">
+            @foreach (var entry in _previewEntries.Take(10))
+            {
+                <MudListItem >
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText  Typo="Typo.body1">@entry.EntryDate.ToString("MMMM dd, yyyy")</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @entry.PrimaryMood?.Emoji @entry.PrimaryMood?.Name · @entry.WordCount words
+                            </MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.Article" Color="Color.Secondary" />
+                    </div>
+                </MudListItem>
+                <MudDivider />
+            }
+        </MudList>
+
+        @if (_previewEntries.Count > 10)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                ... and @(_previewEntries.Count - 10) more entries
+            </MudText>
+        }
+    </MudPaper>
+}
+
+<!-- Export History -->
+<MudPaper Elevation="2" Class="pa-4 mt-4">
+    <MudText Typo="Typo.h6" GutterBottom="true">
+        <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="mr-1" />
+        Export Information
+    </MudText>
+
+    <MudText Typo="Typo.body2" Class="mb-2">
+        • PDF exports include all entry details: title, content, moods, tags, and metadata
+    </MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">
+        • Entries are ordered by date (oldest to newest)
+    </MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">
+        • Markdown formatting is converted to plain text in PDF
+    </MudText>
+    <MudText Typo="Typo.body2">
+        • Exported files are saved to your browser's default download folder
+    </MudText>
+</MudPaper>
+
+@code {
+    private bool _isExporting = false;
+    private DateTime? _startDate = DateTime.Today.AddMonths(-1);
+    private DateTime? _endDate = DateTime.Today;
+    private string _exportTitle = "My Journal";
+    private List<JournalEntry> _previewEntries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPreviewAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadPreviewAsync();
+    }
+
+    private async Task LoadPreviewAsync()
+    {
+        if (_startDate.HasValue && _endDate.HasValue)
+        {
+            try
+            {
+                _previewEntries = await JournalService.FilterEntriesAsync(_startDate, _endDate, null, null);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading preview: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task ExportAllEntries()
+    {
+        if (!_startDate.HasValue || !_endDate.HasValue)
+        {
+            Snackbar.Add("Please select both start and end dates", Severity.Warning);
+            return;
+        }
+
+        if (_startDate > _endDate)
+        {
+            Snackbar.Add("Start date must be before end date", Severity.Warning);
+            return;
+        }
+
+        _isExporting = true;
+        try
+        {
+            var entries = await JournalService.FilterEntriesAsync(_startDate, _endDate, null, null);
+
+            if (!entries.Any())
+            {
+                Snackbar.Add("No entries found in the selected date range", Severity.Info);
+                return;
+            }
+
+            var title = string.IsNullOrWhiteSpace(_exportTitle) 
+                ? $"Journal Export - {_startDate:yyyy-MM-dd} to {_endDate:yyyy-MM-dd}"
+                : _exportTitle;
+
+            var pdfBytes = await PdfExportService.ExportEntriesAsync(entries, title);
+            
+            var fileName = $"journal-export-{_startDate:yyyy-MM-dd}-to-{_endDate:yyyy-MM-dd}.pdf";
+            
+            // Download file using JavaScript interop
+            await JS.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(pdfBytes));
+            
+            Snackbar.Add($"Successfully exported {entries.Count} entries to PDF!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error exporting PDF: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    private async Task SetThisMonth()
+    {
+        var now = DateTime.Today;
+        _startDate = new DateTime(now.Year, now.Month, 1);
+        _endDate = now;
+        await LoadPreviewAsync();
+    }
+
+    private async Task SetThisYear()
+    {
+        var now = DateTime.Today;
+        _startDate = new DateTime(now.Year, 1, 1);
+        _endDate = now;
+        await LoadPreviewAsync();
+    }
+
+    private async Task SetAllTime()
+    {
+        var allEntries = await JournalService.GetAllEntriesAsync();
+        if (allEntries.Any())
+        {
+            _startDate = allEntries.Min(e => e.EntryDate);
+            _endDate = allEntries.Max(e => e.EntryDate);
+        }
+        else
+        {
+            _startDate = DateTime.Today.AddYears(-1);
+            _endDate = DateTime.Today;
+        }
+        await LoadPreviewAsync();
+    }
+}

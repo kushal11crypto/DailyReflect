@@ -1,0 +1,325 @@
+﻿@page "/today"
+@inject IJournalService JournalService
+@inject ITagCategoryService TagCategoryService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+
+<PageTitle>Today's Entry - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" />
+    @(DateTime.Today.ToString("MMMM dd, yyyy"))
+</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else
+{
+    <MudPaper Elevation="2" Class="pa-4 mt-4">
+        <MudForm @ref="_form" Model="@_entry">
+            <!-- Title -->
+            <MudTextField @bind-Value="_entry.Title"
+                          Label="Title (Optional)"
+                          Variant="Variant.Outlined"
+                          MaxLength="200"
+                          Class="mb-4" />
+
+            <!-- Content Editor -->
+            <MudTextField @bind-Value="_entry.Content"
+                          Label="What's on your mind?"
+                          Variant="Variant.Outlined"
+                          Lines="15"
+                          AutoGrow="true"
+                          Required="true"
+                          RequiredError="Content is required"
+                          Class="mb-4" />
+
+            <MudSwitch @bind-Checked="_entry.IsMarkdown" Color="Color.Primary" Class="mb-4">
+                Enable Markdown Formatting
+            </MudSwitch>
+
+            <!-- Mood Selection -->
+            <MudText Typo="Typo.h6" Class="mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.Mood" Class="mr-1" Size="Size.Small" />
+                Mood <MudChip Size="Size.Small" Color="Color.Error">Required</MudChip>
+            </MudText>
+
+            <MudSelect @bind-Value="_entry.PrimaryMoodId"
+                       Label="Primary Mood"
+                       Variant="Variant.Outlined"
+                       Required="true"
+                       Class="mb-3">
+                @foreach (var category in Enum.GetValues<MoodCategory>())
+                {
+                    <MudSelectGroup Label="@GetMoodCategoryLabel(category)">
+                        @foreach (var mood in _moods.Where(m => m.Category == category))
+                        {
+                            <MudSelectItem Value="@mood.Id">@mood.Emoji @mood.Name</MudSelectItem>
+                        }
+                    </MudSelectGroup>
+                }
+            </MudSelect>
+
+            <MudSelect @bind-Value="_entry.SecondaryMood1Id"
+                       Label="Secondary Mood 1 (Optional)"
+                       Variant="Variant.Outlined"
+                       Clearable="true"
+                       Class="mb-3">
+                @foreach (var mood in _moods)
+                {
+                    <MudSelectItem Value="@((int?)mood.Id)">@mood.Emoji @mood.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect @bind-Value="_entry.SecondaryMood2Id"
+                       Label="Secondary Mood 2 (Optional)"
+                       Variant="Variant.Outlined"
+                       Clearable="true"
+                       Class="mb-4">
+                @foreach (var mood in _moods)
+                {
+                    <MudSelectItem Value="@((int?)mood.Id)">@mood.Emoji @mood.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <!-- Category Selection -->
+            <MudSelect @bind-Value="_entry.CategoryId"
+                       Label="Category (Optional)"
+                       Variant="Variant.Outlined"
+                       Clearable="true"
+                       Class="mb-4">
+                @foreach (var category in _categories)
+                {
+                    <MudSelectItem Value="@((int?)category.Id)">@category.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <!-- Tag Selection -->
+            <MudText Typo="Typo.h6" Class="mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.Label" Class="mr-1" Size="Size.Small" />
+                Tags (Optional)
+            </MudText>
+
+            <MudChipSet @bind-SelectedValues="_selectedTags" MultiSelection="true" Filter="true" Class="mb-4">
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Pre-built Tags</MudText>
+                @foreach (var tag in _preBuiltTags)
+                {
+                    <MudChip Value="@tag.Id" Color="Color.Primary" Variant="Variant.Outlined">@tag.Name</MudChip>
+                }
+                
+                @if (_customTags.Any())
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 mt-3">Custom Tags</MudText>
+                    @foreach (var tag in _customTags)
+                    {
+                        <MudChip Value="@tag.Id" Color="Color.Secondary" Variant="Variant.Outlined">@tag.Name</MudChip>
+                    }
+                }
+            </MudChipSet>
+
+            <!-- Custom Tag Creation -->
+            <div class="d-flex gap-2 mb-4">
+                <MudTextField @bind-Value="_newTagName"
+                              Label="Create New Tag"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.End"
+                              AdornmentIcon="@Icons.Material.Filled.Add" />
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="CreateCustomTag" Disabled="string.IsNullOrWhiteSpace(_newTagName)">
+                    Add Tag
+                </MudButton>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 mt-6">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="SaveEntry"
+                           Disabled="_isSaving">
+                    @if (_isSaving)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                        <span class="ml-2">Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save Entry</span>
+                    }
+                </MudButton>
+
+                @if (_entry.Id > 0)
+                {
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Delete"
+                               OnClick="DeleteEntry">
+                        Delete
+                    </MudButton>
+                }
+
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.Cancel"
+                           OnClick="@(() => Navigation.NavigateTo("/"))">
+                    Cancel
+                </MudButton>
+            </div>
+        </MudForm>
+    </MudPaper>
+}
+
+@code {
+    private MudForm _form = null!;
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+
+    private JournalEntry _entry = new() { EntryDate = DateTime.Today };
+    private List<Mood> _moods = new();
+    private List<Tag> _preBuiltTags = new();
+    private List<Tag> _customTags = new();
+    private List<DailyReflect.Components.Models.Category> _categories = new();
+
+    private ICollection<object> _selectedTags = new HashSet<object>();
+    private string _newTagName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            // Load reference data
+            _moods = await TagCategoryService.GetAllMoodsAsync();
+            _preBuiltTags = await TagCategoryService.GetPreBuiltTagsAsync();
+            _customTags = await TagCategoryService.GetCustomTagsAsync();
+            _categories = await TagCategoryService.GetAllCategoriesAsync();
+
+            // Load today's entry if it exists
+            var existingEntry = await JournalService.GetEntryByDateAsync(DateTime.Today);
+
+            if (existingEntry != null)
+            {
+                _entry = existingEntry;
+                _selectedTags = new HashSet<object>(existingEntry.JournalEntryTags.Select(jet => (object)jet.TagId));
+            }
+            else
+            {
+                // Set default primary mood to first positive mood
+                var defaultMood = _moods.FirstOrDefault(m => m.Category == MoodCategory.Positive);
+                if (defaultMood != null)
+                {
+                    _entry.PrimaryMoodId = defaultMood.Id;
+                }
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveEntry()
+    {
+        await _form.Validate();
+
+        if (!_form.IsValid)
+        {
+            Snackbar.Add("Please fill in all required fields", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            // Set entry date to today
+            _entry.EntryDate = DateTime.Today;
+
+            // Clear and add selected tags
+            _entry.JournalEntryTags.Clear();
+            foreach (var tagId in _selectedTags.Cast<int>())
+            {
+                _entry.JournalEntryTags.Add(new JournalEntryTag { TagId = tagId });
+            }
+
+            var savedEntry = await JournalService.CreateOrUpdateEntryAsync(_entry);
+
+            Snackbar.Add(_entry.Id > 0 ? "Entry updated successfully!" : "Entry created successfully!", Severity.Success);
+
+            // Reload to get updated data
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving entry: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task DeleteEntry()
+    {
+        if (_entry.Id == 0)
+            return;
+
+        // Show a confirmation dialog
+        var parameters = new DialogParameters { { "ContentText", "Are you sure you want to delete this entry?" } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = DialogService.Show<ConfirmDialog>("Confirm Delete", parameters, options);
+        var result = await dialog.Result;
+
+
+        if (!result.Cancelled) ;
+        return;
+
+        try
+        {
+            await JournalService.DeleteEntryAsync(_entry.Id);
+            Snackbar.Add("Entry deleted successfully", Severity.Success);
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting entry: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CreateCustomTag()
+    {
+        if (string.IsNullOrWhiteSpace(_newTagName))
+            return;
+
+        try
+        {
+            var newTag = await TagCategoryService.CreateTagAsync(_newTagName.Trim(), isCustom: true);
+            _customTags.Add(newTag);
+            _selectedTags.Add(newTag.Id);
+            _newTagName = string.Empty;
+            
+            Snackbar.Add($"Tag '{newTag.Name}' created successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating tag: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private string GetMoodCategoryLabel(MoodCategory category)
+    {
+        return category switch
+        {
+            MoodCategory.Positive => "😊 Positive",
+            MoodCategory.Neutral => "😐 Neutral",
+            MoodCategory.Negative => "😔 Negative",
+            _ => category.ToString()
+        };
+    }
+}

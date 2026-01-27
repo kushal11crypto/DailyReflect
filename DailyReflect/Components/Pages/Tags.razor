@@ -1,0 +1,173 @@
+﻿@page "/tags"
+@inject ITagCategoryService TagCategoryService
+@inject ISnackbar Snackbar
+
+<PageTitle>Manage Tags - DailyReflect</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.Label" Class="mr-2" />
+    Manage Tags
+</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else
+{
+    <!-- Add New Tag -->
+    <MudPaper Elevation="2" Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6" GutterBottom="true">Create New Tag</MudText>
+        
+        <div class="d-flex gap-2">
+            <MudTextField @bind-Value="_newTagName"
+                          Label="Tag Name"
+                          Variant="Variant.Outlined"
+                          Style="flex: 1;"
+                          OnKeyPress="HandleKeyPress" />
+            
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="CreateTag"
+                       Disabled="string.IsNullOrWhiteSpace(_newTagName) || _isSaving">
+                Create Tag
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    <!-- Custom Tags -->
+    <MudPaper Elevation="2" Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6" GutterBottom="true">
+            <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Class="mr-1" />
+            Custom Tags (@_customTags.Count)
+        </MudText>
+
+        @if (_customTags.Any())
+        {
+            <MudChipSet T="Tag">
+                @foreach (var tag in _customTags)
+                {
+                    <MudChip Color="Color.Secondary" 
+                             OnClose="@(() => DeleteTag(tag))"
+                             CloseIcon="@Icons.Material.Filled.Delete">
+                        @tag.Name
+                    </MudChip>
+                }
+            </MudChipSet>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                No custom tags created yet. Create your first custom tag above!
+            </MudText>
+        }
+    </MudPaper>
+
+    <!-- Pre-built Tags -->
+    <MudPaper Elevation="2" Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6" GutterBottom="true">
+            <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small" Class="mr-1" />
+            Pre-built Tags (@_preBuiltTags.Count)
+        </MudText>
+
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            These are the default tags provided by DailyReflect. They cannot be deleted.
+        </MudText>
+
+        <MudChipSet T="Tag">
+            @foreach (var tag in _preBuiltTags)
+            {
+                <MudChip Color="Color.Primary" Variant="Variant.Outlined">
+                    @tag.Name
+                </MudChip>
+            }
+        </MudChipSet>
+    </MudPaper>
+}
+
+@code {
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private string _newTagName = string.Empty;
+    
+    private List<Tag> _customTags = new();
+    private List<Tag> _preBuiltTags = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTagsAsync();
+    }
+
+    private async Task LoadTagsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _customTags = await TagCategoryService.GetCustomTagsAsync();
+            _preBuiltTags = await TagCategoryService.GetPreBuiltTagsAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateTag()
+    {
+        if (string.IsNullOrWhiteSpace(_newTagName))
+            return;
+
+        _isSaving = true;
+        try
+        {
+            var tag = await TagCategoryService.CreateTagAsync(_newTagName.Trim(), isCustom: true);
+            
+            if (!_customTags.Any(t => t.Id == tag.Id))
+            {
+                _customTags.Add(tag);
+                Snackbar.Add($"Tag '{tag.Name}' created successfully!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Tag '{tag.Name}' already exists", Severity.Info);
+            }
+            
+            _newTagName = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating tag: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task DeleteTag(Tag tag)
+    {
+        try
+        {
+            var success = await TagCategoryService.DeleteTagAsync(tag.Id);
+            
+            if (success)
+            {
+                _customTags.Remove(tag);
+                Snackbar.Add($"Tag '{tag.Name}' deleted successfully", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting tag: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CreateTag();
+        }
+    }
+}
